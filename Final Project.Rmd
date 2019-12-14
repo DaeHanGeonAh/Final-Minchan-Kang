@@ -1,25 +1,97 @@
 ---
 title: "Final Project"
-Author: "Minchan Kang"
+author: "Minchan Kang"
 output: html_notebook
 ---
-## Airbnb Lisiting in New York City
 
-Load packages
+## Comparing average price of Airbnb in New York City and San Francisco
+#### 　
+I have a friend who is living in San Francisco who moved from New York city. When I visited my friend 4 years ago when he was in New York city, I used Airbnb and the experience was fair enough. This Christmas, I am planning to visit him again in San Fracisco and I wonder how much the price of Airbnb in San Francisco would differ from the one in New York. Therefore, in this project, I will be comparing the average price of Airbnb in two different cities depending on room type and other factors.
+
+#### 　
+#### 　
+#### Loading packages
 ```{r}
 library(DataComputing)
+library(tidyverse)
+```
+
+#### 　
+#### 　
+#### Loading & Analyzing the Dataset
+
+```{r}
+listingNYC <- read.csv("Airbnb List in NYC.csv", stringsAsFactors = FALSE)
+listingNYC$latitude <- as.character(listingNYC$latitude) #Changing the data type of 'latitude' from numeric into character for future operation.
+str(listingNYC) #Inspecting
 ```
 
 ```{r}
-airbnb <-
-  Airbnb_List_in_NYC %>%
-  group_by(neighbourhood_group) %>%
-  summarise(average_price = round(mean(price), 2))
-
-airbnb
+listingSFO <- read.csv("Airbnb List in SFO.csv", stringsAsFactors = FALSE)
+str(listingSFO) #Inspecting
 ```
+Each datasets has 16 and 15 variables. The number of the Airbnbs(cases) differ significantly. New York city has 48,015 cases, on the other hand, San Francisco has 8,488. The Airbnbs in New York city are almost 6 times as much as the ones in San Francisco. The variables contain id and name of the Airbnb, id and name of the host, neighbourhood, latitude, longitude, room type, price, minimum nights that people stayed, number of reviews, the date when the last review is written, calculated host listing count, and availability in one year.
+
+#### Data Wrangling
 
 ```{r}
-ggplot(data=airbnb,aes(x=neighbourhood_group,y=average_price)) + 
-geom_bar(stat='identity',position='stack', width=.9) 
+nyc <-
+  listingNYC %>%
+  select(neighbourhood, longitude, latitude, room_type, price) #Selecting the only columns that I will use.
+
+sfo <-
+  listingSFO %>%
+  select(neighbourhood, longitude, latitude, room_type, price)
 ```
+
+My friend was originally attending School of Visual Art(SVA) in NYC (40.73878, -73.98222) and after graduation, he is currently living in financial district, San Francisco(37.7946, -122.3999) which is called as downtown in San Francisco. First of all, Let's take a look at 50 closest Airbnbs from each destination. '0.005' degrees difference in geographic coordinates changes approximately 0.7 miles.
+
+```{r}
+nyc50 <-
+  nyc %>%
+  filter(40.733 < latitude, latitude < 40.743, -73.977 <longitude, longitude < -73.987) %>% #Filtering out the closest Airbnbs from SVA
+  head(50)
+
+sfo50 <-
+  sfo %>%
+  filter(37.789 < latitude, latitude < 37.799, longitude > -122.394, longitude < -122.404) %>% #Filtering out the closest airbnbs from financial district
+  head (50)
+```
+
+Now I have 50 closest Airbnbs from our target coordinates. The process of wrangling is finished and I will bind two datasets into one and compare the average price of each city.
+
+```{r}
+closeABs <- bind_rows(nyc50, sfo50, .id = "id") #Adding rows of sfo50 to nyc50
+
+closeABs$id[closeABs$id == "1"] <- "NYC" #Changing indices into character.
+closeABs$id[closeABs$id == "2"] <- "SFO"
+
+closeABs %>%
+  group_by(id) %>%
+  summarise('average price' = mean(price))
+```
+(1 indicates the Airbnbs in NYC, and 2 indicates the ones in SFO)
+
+The average price tells me that Airbnbs in NYC is much more expensive than the ones in SFO. But as I'm just a student and mostly lack of money, I always try to choose the cheapest alternative whenver I do something. And I thought that the price would vary a lot depending on the type of room. So I made the average price table depends on the type of room.
+
+```{r}
+abType <-
+  closeABs %>%
+  group_by(id, room_type) %>% #Make a new table by adding the room_type variable to the last average price table.
+  summarise('average price' = mean(price))
+
+abType %>%
+  spread(key = room_type, value = 'average price', fill = 0) #spreading the dataframe with respect to room_type
+```
+
+Although the average price of all Airbnbs around NYC, if I choose the cheapest one (private room) in New York, it is cheaper than staying in a private room in SFO. However, I can save the most of my money when I go to SFO and stay at a shared room. It would be uncomfortable for me but it is the cheapest and the closest way to stay around my friend. And to visualize the trend of Airbnbs around the target regions, I have used scatterplot based on longitude and latitude so that I can utilize it as a map, but in easier way. The vertical line on the graph indicates the longitude of each of the target region.
+
+```{r}
+nyc50 %>%
+  ggplot(aes(x=longitude, y=latitude, size = price, color = room_type)) +
+  geom_point() +
+  geom_point(data = sfo50, shape = 22) +
+  geom_vline(xintercept = 73.98222) +
+  geom_vline(xintercept = 22.3999)
+```
+
